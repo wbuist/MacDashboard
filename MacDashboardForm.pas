@@ -1,12 +1,10 @@
-// File: MacDashboardForm.pas
-
 unit MacDashboardForm;
 
 interface
 
 uses
   System.SysUtils, System.Classes, FMX.Forms, FMX.Controls, FMX.StdCtrls,
-  FMX.Layouts, FMX.Types, FMX.Memo, GmailIntegration, IniFiles, FMX.Memo.Types,
+  FMX.Layouts, FMX.Types, FMX.Memo, GmailIntegration, FMX.Memo.Types,
   FMX.ScrollBox, FMX.Controls.Presentation;
 
 type
@@ -22,7 +20,7 @@ type
     procedure ButtonRefreshGmailClick(Sender: TObject);
   private
     FGmailIntegration: TGmailIntegration;
-    procedure LoadCredentials;
+    procedure Log(const Msg: string);
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
@@ -38,63 +36,48 @@ implementation
 constructor TForm1.Create(AOwner: TComponent);
 begin
   inherited;
-  FGmailIntegration := TGmailIntegration.Create(MemoLog); // Pass MemoLog here
-  LoadCredentials;
+  Log('Initializing dashboard...');
+  try
+    FGmailIntegration := TGmailIntegration.Create(MemoLog);
+    Log('TGmailIntegration created successfully.');
+  except
+    on E: Exception do
+      Log('Error creating TGmailIntegration: ' + E.Message);
+  end;
 end;
 
 destructor TForm1.Destroy;
 begin
+  Log('Destroying TGmailIntegration...');
   FGmailIntegration.Free;
+  Log('TGmailIntegration destroyed.');
   inherited;
 end;
-
-procedure TForm1.LoadCredentials;
-var
-  Ini: TIniFile;
-  ConfigPath: string;
-begin
-  MemoLog.Lines.Add('Loading credentials...');
-
-  {$IFDEF MSWINDOWS}
-  ConfigPath := 'Y:\support\macdashboard\config.ini';
-  {$ENDIF}
-  {$IFDEF MACOS}
-  ConfigPath := '/Users/williambuist/Library/CloudStorage/GoogleDrive-william@williambuist.com/My Drive/Business/GitHub/support/config.ini'; // Update this path as needed for Mac
-  {$ENDIF}
-
-  Ini := TIniFile.Create(ConfigPath);
-  try
-    FGmailIntegration.ClientId := Ini.ReadString('Credentials', 'ClientId', '');
-    FGmailIntegration.ClientSecret := Ini.ReadString('Credentials', 'ClientSecret', '');
-    FGmailIntegration.AccessToken := Ini.ReadString('Credentials', 'AccessToken', '');
-    FGmailIntegration.RefreshToken := Ini.ReadString('Credentials', 'RefreshToken', '');
-    MemoLog.Lines.Add('ClientId: ' + FGmailIntegration.ClientId);
-    MemoLog.Lines.Add('ClientSecret: ' + FGmailIntegration.ClientSecret);
-    MemoLog.Lines.Add('AccessToken: ' + FGmailIntegration.AccessToken);
-    MemoLog.Lines.Add('RefreshToken: ' + FGmailIntegration.RefreshToken);
-    MemoLog.Lines.Add('Credentials loaded.');
-  finally
-    Ini.Free;
-  end;
-end;
-
 
 procedure TForm1.ButtonRefreshGmailClick(Sender: TObject);
 var
   InboxCount, UnreadCount: Integer;
 begin
-  MemoLog.Lines.Add('Fetching Gmail data...');
+  Log('Refreshing Gmail data...');
   try
     InboxCount := FGmailIntegration.GetInboxCount;
     UnreadCount := FGmailIntegration.GetUnreadCount;
     LabelGmail.Text := Format('Inbox: %d, Unread: %d', [InboxCount, UnreadCount]);
-    MemoLog.Lines.Add(Format('Inbox: %d, Unread: %d', [InboxCount, UnreadCount]));
+    Log(Format('Gmail data updated: Inbox: %d, Unread: %d', [InboxCount, UnreadCount]));
   except
     on E: Exception do
     begin
-      MemoLog.Lines.Add('Error: ' + E.Message);
+      Log('Error updating Gmail data: ' + E.Message);
     end;
   end;
+end;
+
+procedure TForm1.Log(const Msg: string);
+begin
+  MemoLog.Lines.Add(Msg);
+  {$IFDEF MACOS}
+  Writeln(Msg); // Output to the console for debugging on macOS
+  {$ENDIF}
 end;
 
 end.

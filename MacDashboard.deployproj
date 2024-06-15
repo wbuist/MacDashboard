@@ -44,15 +44,6 @@
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
-        <DeployFile Include="OSXARM64\Debug\MacDashboard.dSYM" Condition="'$(Config)'=='Debug'">
-            <RemoteDir>MacDashboard.app\..\$(PROJECTNAME).app.dSYM\Contents\Resources\DWARF\</RemoteDir>
-            <RemoteName>MacDashboard</RemoteName>
-            <DeployClass>ProjectOSXDebug</DeployClass>
-            <Operation>1</Operation>
-            <LocalCommand/>
-            <RemoteCommand/>
-            <Overwrite>True</Overwrite>
-        </DeployFile>
         <DeployFile Include="OSXARM64\Debug\MacDashboard.info.plist" Condition="'$(Config)'=='Debug'">
             <RemoteDir>MacDashboard.app\Contents\</RemoteDir>
             <RemoteName>Info.plist</RemoteName>
@@ -62,10 +53,47 @@
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
+        <DeployFile Include="OSXARM64\Release\MacDashboard" Condition="'$(Config)'=='Release'">
+            <RemoteDir>MacDashboard.app\Contents\MacOS\</RemoteDir>
+            <RemoteName>MacDashboard</RemoteName>
+            <DeployClass>ProjectOutput</DeployClass>
+            <Operation>1</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+            <Required>True</Required>
+        </DeployFile>
         <DeployFile Include="$(BDS)\bin\delphi_PROJECTICNS.icns" Condition="'$(Config)'=='Debug'">
             <RemoteDir>MacDashboard.app\Contents\Resources\</RemoteDir>
             <RemoteName>MacDashboard.icns</RemoteName>
             <DeployClass>ProjectOSXResource</DeployClass>
+            <Operation>1</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="$(BDS)\bin\delphi_PROJECTICNS.icns" Condition="'$(Config)'=='Release'">
+            <RemoteDir>MacDashboard.app\Contents\Resources\</RemoteDir>
+            <RemoteName>MacDashboard.icns</RemoteName>
+            <DeployClass>ProjectOSXResource</DeployClass>
+            <Operation>1</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="OSXARM64\Release\MacDashboard.entitlements" Condition="'$(Config)'=='Release'">
+            <RemoteDir>MacDashboard.app\..\</RemoteDir>
+            <RemoteName>MacDashboard.entitlements</RemoteName>
+            <DeployClass>ProjectOSXEntitlements</DeployClass>
+            <Operation>1</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="OSXARM64\Release\MacDashboard.info.plist" Condition="'$(Config)'=='Release'">
+            <RemoteDir>MacDashboard.app\Contents\</RemoteDir>
+            <RemoteName>Info.plist</RemoteName>
+            <DeployClass>ProjectOSXInfoPList</DeployClass>
             <Operation>1</Operation>
             <LocalCommand/>
             <RemoteCommand/>

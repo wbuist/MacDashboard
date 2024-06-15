@@ -1,11 +1,9 @@
-// File: GmailIntegration.pas
-
 unit GmailIntegration;
 
 interface
 
 uses
-  System.SysUtils, System.Classes, IdHTTP, IdSSLOpenSSL, IdSSLOpenSSLHeaders, System.JSON, FMX.Memo;
+  System.SysUtils, System.Classes, IdHTTP, IdSSLOpenSSL, System.JSON, FMX.Memo, FMX.Forms;
 
 type
   TGmailIntegration = class
@@ -20,6 +18,9 @@ type
     procedure SetAccessToken(const Value: string);
     function ExtractJsonValue(const JsonString, Key: string): string;
     procedure RefreshAccessToken;
+    procedure LogMessage(const Msg: string);
+    procedure LoadOpenSSLLibraries;
+    function LoadLibrary(const LibName: string): HMODULE;
   public
     constructor Create(AMemoLog: TMemo);
     destructor Destroy; override;
@@ -31,38 +32,45 @@ type
     property ClientSecret: string read FClientSecret write FClientSecret;
   end;
 
-procedure LoadOpenSSLLibraries;
-
 implementation
-
-procedure LoadOpenSSLLibraries;
-begin
-  {$IFDEF MSWINDOWS}
-  IdOpenSSLSetLibPath('Y:\support\MacDashboard'); // Set this to the path where your DLLs are located
-  {$ENDIF}
-  {$IFDEF MACOS}
-  IdOpenSSLSetLibPath('/opt/homebrew/opt/openssl@1.1/lib');
-  {$ENDIF}
-  if not IdSSLOpenSSL.LoadOpenSSLLibrary then
-    raise Exception.Create('Could not load OpenSSL library.');
-end;
 
 { TGmailIntegration }
 
 constructor TGmailIntegration.Create(AMemoLog: TMemo);
 begin
   FMemoLog := AMemoLog;
-  LoadOpenSSLLibraries;
-  FHTTP := TIdHTTP.Create(nil);
-  FSSLHandler := TIdSSLIOHandlerSocketOpenSSL.Create(nil);
-  FHTTP.IOHandler := FSSLHandler;
+  LogMessage('Initializing Gmail integration...');
+  try
+    LoadOpenSSLLibraries; // Dynamically load SSL libraries
+    LogMessage('SSL libraries loaded.');
+
+    FHTTP := TIdHTTP.Create(nil);
+    FSSLHandler := TIdSSLIOHandlerSocketOpenSSL.Create(nil);
+    FHTTP.IOHandler := FSSLHandler;
+
+    LogMessage('HTTP and SSL handler created successfully.');
+  except
+    on E: Exception do
+    begin
+      LogMessage('Error during initialization: ' + E.Message);
+      raise;
+    end;
+  end;
 end;
 
 destructor TGmailIntegration.Destroy;
 begin
+  LogMessage('Destroying TGmailIntegration...');
   FSSLHandler.Free;
   FHTTP.Free;
+  LogMessage('TGmailIntegration destroyed.');
   inherited;
+end;
+
+procedure TGmailIntegration.LogMessage(const Msg: string);
+begin
+  FMemoLog.Lines.Add(Msg);
+  Application.ProcessMessages;
 end;
 
 procedure TGmailIntegration.SetAccessToken(const Value: string);
@@ -84,15 +92,9 @@ begin
     Params.Add('refresh_token=' + FRefreshToken);
     Params.Add('grant_type=refresh_token');
     try
-      FMemoLog.Lines.Add('Refreshing access token...');
-      FMemoLog.Lines.Add('Request Parameters:');
-      FMemoLog.Lines.Add('client_id=' + FClientId);
-      FMemoLog.Lines.Add('client_secret=' + FClientSecret);
-      FMemoLog.Lines.Add('refresh_token=' + FRefreshToken);
-      FMemoLog.Lines.Add('grant_type=refresh_token');
-
+      LogMessage('Refreshing access token...');
       Response := FHTTP.Post(URL, Params);
-      FMemoLog.Lines.Add('Response: ' + Response); // Log the raw response
+      LogMessage('Response: ' + Response);
 
       JsonObject := TJSONObject.ParseJSONValue(Response) as TJSONObject;
       try
@@ -101,12 +103,12 @@ begin
           if JsonObject.GetValue('access_token') <> nil then
           begin
             FAccessToken := JsonObject.GetValue('access_token').Value;
-            FMemoLog.Lines.Add('New AccessToken: ' + FAccessToken);
+            LogMessage('New AccessToken: ' + FAccessToken);
           end
           else if JsonObject.GetValue('error') <> nil then
           begin
-            FMemoLog.Lines.Add('Error: ' + JsonObject.GetValue('error').Value);
-            FMemoLog.Lines.Add('Error Description: ' + JsonObject.GetValue('error_description').Value);
+            LogMessage('Error: ' + JsonObject.GetValue('error').Value);
+            LogMessage('Error Description: ' + JsonObject.GetValue('error_description').Value);
           end;
         end;
       finally
@@ -115,15 +117,14 @@ begin
     except
       on E: Exception do
       begin
-        FMemoLog.Lines.Add('Failed to refresh access token: ' + E.Message);
-        raise Exception.Create('Failed to refresh access token: ' + E.Message);
+        LogMessage('Failed to refresh access token: ' + E.Message);
+        raise;
       end;
     end;
   finally
     Params.Free;
   end;
 end;
-
 
 function TGmailIntegration.ExtractJsonValue(const JsonString, Key: string): string;
 var
@@ -149,24 +150,30 @@ begin
   URL := 'https://www.googleapis.com/gmail/v1/users/me/messages';
   FHTTP.Request.CustomHeaders.Values['Authorization'] := 'Bearer ' + FAccessToken;
   try
+    LogMessage('Fetching inbox count...');
     Response := FHTTP.Get(URL + '?q=in:inbox');
+    LogMessage('Response: ' + Response);
     Result := StrToIntDef(ExtractJsonValue(Response, 'resultSizeEstimate'), 0);
   except
     on E: EIdHTTPProtocolException do
     begin
+      LogMessage('HTTP protocol exception: ' + E.Message);
       if E.ErrorCode = 401 then
       begin
-        FMemoLog.Lines.Add('401 Unauthorized - Refreshing access token...');
+        LogMessage('401 Unauthorized - Refreshing access token...');
         RefreshAccessToken;
         FHTTP.Request.CustomHeaders.Values['Authorization'] := 'Bearer ' + FAccessToken;
         Response := FHTTP.Get(URL + '?q=in:inbox');
+        LogMessage('Response after refresh: ' + Response);
         Result := StrToIntDef(ExtractJsonValue(Response, 'resultSizeEstimate'), 0);
       end
       else
-      begin
-        FMemoLog.Lines.Add('HTTP error: ' + E.Message);
-        raise Exception.Create('HTTP error: ' + E.Message);
-      end;
+        raise;
+    end;
+    on E: Exception do
+    begin
+      LogMessage('General error: ' + E.ClassName + ': ' + E.Message);
+      raise;
     end;
   end;
 end;
@@ -178,26 +185,57 @@ begin
   URL := 'https://www.googleapis.com/gmail/v1/users/me/messages';
   FHTTP.Request.CustomHeaders.Values['Authorization'] := 'Bearer ' + FAccessToken;
   try
+    LogMessage('Fetching unread count...');
     Response := FHTTP.Get(URL + '?q=is:unread');
+    LogMessage('Response: ' + Response);
     Result := StrToIntDef(ExtractJsonValue(Response, 'resultSizeEstimate'), 0);
   except
     on E: EIdHTTPProtocolException do
     begin
+      LogMessage('HTTP protocol exception: ' + E.Message);
       if E.ErrorCode = 401 then
       begin
-        FMemoLog.Lines.Add('401 Unauthorized - Refreshing access token...');
+        LogMessage('401 Unauthorized - Refreshing access token...');
         RefreshAccessToken;
         FHTTP.Request.CustomHeaders.Values['Authorization'] := 'Bearer ' + FAccessToken;
         Response := FHTTP.Get(URL + '?q=is:unread');
+        LogMessage('Response after refresh: ' + Response);
         Result := StrToIntDef(ExtractJsonValue(Response, 'resultSizeEstimate'), 0);
       end
       else
-      begin
-        FMemoLog.Lines.Add('HTTP error: ' + E.Message);
-        raise Exception.Create('HTTP error: ' + E.Message);
-      end;
+        raise;
+    end;
+    on E: Exception do
+    begin
+      LogMessage('General error: ' + E.ClassName + ': ' + E.Message);
+      raise;
     end;
   end;
+end;
+
+function TGmailIntegration.LoadLibrary(const LibName: string): HMODULE;
+begin
+  Result := System.SysUtils.LoadLibrary(PChar(LibName));
+  if Result = 0 then
+    LogMessage('Failed to load library: ' + LibName + '. Error: ' + SysErrorMessage(GetLastError))
+  else
+    LogMessage('Library loaded successfully: ' + LibName);
+end;
+
+procedure TGmailIntegration.LoadOpenSSLLibraries;
+var
+  SSLLib, CryptoLib: HMODULE;
+begin
+  LogMessage('Setting OpenSSL library path to: /opt/homebrew/opt/openssl@1.1/lib');
+
+  // Use versioned libraries
+  SSLLib := LoadLibrary('/opt/homebrew/opt/openssl@1.1/lib/libssl.1.1.dylib');
+  if SSLLib = 0 then
+    raise Exception.Create('Could not load OpenSSL library: libssl.1.1.dylib');
+
+  CryptoLib := LoadLibrary('/opt/homebrew/opt/openssl@1.1/lib/libcrypto.1.1.dylib');
+  if CryptoLib = 0 then
+    raise Exception.Create('Could not load OpenSSL library: libcrypto.1.1.dylib');
 end;
 
 end.
