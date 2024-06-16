@@ -3,7 +3,7 @@ unit GmailIntegration;
 interface
 
 uses
-  System.SysUtils, System.Classes, IdHTTP, IdSSLOpenSSL, System.JSON, FMX.Memo, FMX.Forms;
+  System.SysUtils, System.Classes, IdHTTP, IdSSLOpenSSL, IdSSLOpenSSLHeaders, System.JSON, FMX.Memo, FMX.Forms;
 
 type
   TGmailIntegration = class
@@ -21,6 +21,7 @@ type
     procedure LogMessage(const Msg: string);
     procedure LoadOpenSSLLibraries;
     function LoadLibrary(const LibName: string): HMODULE;
+    procedure InitializeOpenSSL;
   public
     constructor Create(AMemoLog: TMemo);
     destructor Destroy; override;
@@ -43,6 +44,8 @@ begin
   try
     LoadOpenSSLLibraries; // Dynamically load SSL libraries
     LogMessage('SSL libraries loaded.');
+    InitializeOpenSSL; // Initialize OpenSSL for Indy
+    LogMessage('OpenSSL initialized.');
 
     FHTTP := TIdHTTP.Create(nil);
     FSSLHandler := TIdSSLIOHandlerSocketOpenSSL.Create(nil);
@@ -236,6 +239,13 @@ begin
   CryptoLib := LoadLibrary('/opt/homebrew/opt/openssl@1.1/lib/libcrypto.1.1.dylib');
   if CryptoLib = 0 then
     raise Exception.Create('Could not load OpenSSL library: libcrypto.1.1.dylib');
+end;
+
+procedure TGmailIntegration.InitializeOpenSSL;
+begin
+  // Ensure OpenSSL is initialized
+  if not IdSSLOpenSSLHeaders.Load then
+    raise Exception.Create('Failed to load OpenSSL headers.');
 end;
 
 end.
